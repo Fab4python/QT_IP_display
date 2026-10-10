@@ -1,15 +1,17 @@
 # Matrix NetInfo
 
-<img width="1026" height="1444" alt="image" src="https://github.com/user-attachments/assets/eda7d7bd-f62a-4460-94d6-1be4985d3a42" />
 
 
 ## Description
+Ce projet répond à faciliter certains usages de contrôle d'adressage IP de sa connexion.
 
-Visualiser rapidement son adresse IP exposée sur Internet, ses IP privées / serveurs DNS et sa localisation, dans une petite application de bureau au style Matrix (fond noir, texte vert).
+Dans une application de bureau au style Matrix (ou AS400...):
+- Gagner du temps à éviter d'ouvir et de lancer des lignes de commandes en bash ou cmd pour identifier son/ses adresses IP.
+- Gagner du temps à éviter d'ouvrir des favoris de son navigateur pour identifier son adresse IP public
+- Vérifier que votre VPN est bien activé sur internet 
+- Lever un doute sur une demande MFA lorsqu'une localisation est affichée (et que le VPN s'est connecté sur un autre pays)
 
-Application réalisée en Python par prompt engineering.
-
-
+![img.png](img.png)
 
 ## Fonctionnalités
 
@@ -19,11 +21,23 @@ Application réalisée en Python par prompt engineering.
 - Rafraîchissement automatique réglable de 5 s à 5 min (30 s par défaut), avec le nombre d'appels par heure
 - Compteur d'appels restants par jour (limite de 1000 appels `ipinfo.io`)
 
+
+
+Application réalisée full Python par prompt engineering.
 ## Prérequis
 
 - Python 3.12
 - Connaissances de base en Python et dans l'utilisation d'un IDE
 - Bibliothèques : `PySide6` et `requests`
+
+## Third-party licenses
+
+This project uses [PySide6](https://pypi.org/project/PySide6/).
+
+PySide6 is licensed under the GNU Lesser General Public License v3.0 (LGPL-3.0-only),
+and is also available under GPL-2.0-only, GPL-3.0-only, or a Qt commercial license.
+
+Copyright notices and license texts are provided in `THIRD-PARTY-NOTICES.md`.
 
 ## Installation
 
@@ -46,6 +60,8 @@ python main.py
 ```
 
 ## Créer un exécutable (Windows)
+
+L'application peut être convertie en .exe pour windows.
 
 ```
 pip install pyinstaller
@@ -83,11 +99,11 @@ L'application enregistre le compteur d'appels et un cache des tuiles de carte da
 | `main.py` | Point d'entrée : crée l'application Qt et affiche la fenêtre. |
 | `main_window.py` | La partie graphique seule, sans aucune logique réseau. Elle affiche les résultats que lui envoie le worker. |
 | `worker.py` | Le lien entre les deux mondes. Il appelle les recherches dans un `QThread` pour que la fenêtre ne se fige pas, lance les opérations lentes en parallèle et envoie les résultats au fur et à mesure (IP, puis DNS, puis carte). |
-| `local_lookup.py` | Tout ce que la machine sait d'elle-même, sans Internet. Il lit les serveurs DNS configurés (Windows, macOS, Linux), indique si une adresse est locale ou publique, et fait la résolution DNS inverse. |
+| `local_lookup.py` | Tout ce que la machine sait d'elle-même, sans Internet. Il lit les serveurs DNS configurés (Windows, macOS, Linux) avec le nom de la carte réseau sous Windows (PowerShell Get-DnsClientServerAddress), indique si une adresse est locale ou publique, et fait la résolution DNS inverse.|
 | `dns_lookup.py` | La définition de l'adresse DNS. Avec `requests`, il identifie ton IP publique, décrit chaque serveur DNS (opérateur, lieu, coordonnées) et choisit le point à afficher sur la carte. Il ne dépend pas de Qt. |
 | `map_builder.py` | Téléchargement en parallèle des seules tuiles visibles (avec cache disque), filtre vert optionnel et marqueur. Isolé car il utilise Qt pour dessiner, mais ce n'est pas de l'interface. |
 | `config.py` | Couleurs, taille de fenêtre, URL, délais d'attente, zoom et taille de la carte. Pour changer le zoom, la taille de la carte ou le vert, tout se fait ici. |
 | `styles.py` | Le style Qt, construit à partir des valeurs de `config.py`. |
 | `quota.py` | Compteur local d'appels `ipinfo.io`, remis à zéro chaque jour et enregistré dans `~/.matrix_netinfo/quota.json`. Calcule aussi le nombre d'appels par heure selon l'intervalle de rafraîchissement. |
-| `utils.py` | Mise en forme des durées (`30 s`, `5 min`, `4 h 10 min`). |
+| `utils.py` | Mise en forme des durées (30 s, 5 min, 4 h 10 min) et des lignes d'IP avec le nom de la carte réseau. |
 | `widgets.py` | Widgets graphiques personnalisés : le trait en pointillés (simple ou double) des séparateurs. |

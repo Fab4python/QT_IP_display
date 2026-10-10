@@ -33,7 +33,7 @@ class Worker(QThread):
 
             # 1) IP publique (ce thread) pendant que les DNS locaux sont lus à côté
             with ThreadPoolExecutor(max_workers=1) as pool:
-                f_servers = pool.submit(local_lookup.get_dns_servers)
+                f_servers = pool.submit(local_lookup.get_dns_servers_detailed)
                 my_info = dns_lookup.fetch_public_ip_info(session)
                 self.ip_ready.emit(my_info)  # l'IP s'affiche tout de suite
                 servers = f_servers.result()
@@ -54,7 +54,9 @@ class Worker(QThread):
                 reverse_deadline = time.monotonic() + c.REVERSE_DNS_TIMEOUT
 
             # 3) DNS : localisation des serveurs publics en parallèle
-            entries = dns_lookup.describe_dns_servers(session, servers)
+            entries = dns_lookup.describe_dns_servers(session, [s["ip"] for s in servers])
+            for entry, s in zip(entries, servers):
+                entry["alias"] = s["alias"]  # nom de la carte réseau (Windows)
             self.dns_ready.emit(entries)
 
             # 4) Carte

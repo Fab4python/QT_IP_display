@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 import config as c
 import quota
 from styles import STYLE
-from utils import format_duration
+from utils import format_duration, format_ip_entry
 from widgets import DashedSeparator
 from worker import Worker
 
@@ -252,16 +252,17 @@ class MainWindow(QWidget):
         self.render_ip()
 
     def on_dns_ready(self, entries):
-        if entries:
-            lines = []
-            for i, s in enumerate(entries, 1):
-                if s["public"]:
-                    lines.append(f'IP {i}    : {s["ip"]}  ({s.get("org", "?")} - {s.get("place", "?")})')
-                else:
-                    lines.append(f'IP {i}    : {s["ip"]}  (reseau local)')
-            self.dns_label.setText("\n".join(lines))
-        else:
+        if not entries:
             self.dns_label.setText("Aucune IP detectee")
+            self.dns_label.setToolTip("")
+            return
+        short, full = [], []
+        for i, entry in enumerate(entries, 1):
+            line_short, line_full = format_ip_entry(i, entry, c.ALIAS_MAX_CHARS)
+            short.append(line_short)
+            full.append(line_full)
+        self.dns_label.setText("\n".join(short))
+        self.dns_label.setToolTip("\n".join(full))  # alias complets au survol
 
     def on_map_ready(self, image, label):
         if image is not None:
