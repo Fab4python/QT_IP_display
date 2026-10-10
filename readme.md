@@ -11,7 +11,8 @@ Dans une application de bureau au style Matrix (ou AS400...):
 - Vérifier que votre VPN est bien activé sur internet 
 - Lever un doute sur une demande MFA lorsqu'une localisation est affichée (et que le VPN s'est connecté sur un autre pays)
 
-![img.png](img.png)
+<img width="977" height="1393" alt="image" src="https://github.com/user-attachments/assets/c1a23b26-bde7-4f40-a687-4148e9068ab2" />
+
 
 ## Fonctionnalités
 
