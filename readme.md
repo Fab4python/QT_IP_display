@@ -1,5 +1,8 @@
 # Matrix NetInfo
 
+<img width="1026" height="1444" alt="image" src="https://github.com/user-attachments/assets/eda7d7bd-f62a-4460-94d6-1be4985d3a42" />
+
+
 ## Description
 
 Visualiser rapidement son adresse IP exposée sur Internet, ses IP privées / serveurs DNS et sa localisation, dans une petite application de bureau au style Matrix (fond noir, texte vert).
