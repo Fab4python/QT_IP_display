@@ -1,4 +1,6 @@
 """Partie graphique uniquement : aucune logique réseau ici."""
+from datetime import datetime
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -15,6 +17,7 @@ import config as c
 import quota
 from styles import STYLE
 from utils import format_duration
+from widgets import DashedSeparator
 from worker import Worker
 
 
@@ -22,29 +25,38 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(c.APP_TITLE)
-        self.setMinimumSize(*c.WINDOW_MIN_SIZE)
         self.setStyleSheet(STYLE)
 
         self.calls_per_scan = c.DEFAULT_CALLS_PER_SCAN
+        self.my_info = {}
+        self.host = "..."
         self.worker = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.on_timer)
 
         # --- affichage des résultats ---
-        self.title = QLabel("> NETWORK IP-EXPOSITION SCAN")
+        self.title = QLabel("> NETWORK_SCAN_")
         self.title.setObjectName("title")
 
-        self.ip_header = self._section("[ IDENTITE INTERNET]")
+        self.ip_header = self._section("[ IDENTITE RESEAU ]")
         self.ip_label = QLabel("...")
 
-        self.dns_header = self._section("[ IP-PRIVEE ]")
+        self.dns_header = self._section("[ IP PRIVE ]")
         self.dns_label = QLabel("...")
 
-        self.map_header = self._section("[ LOCALISATION ]")
+        self.map_title = "LOCALISATION"
+        self.map_toggle = QPushButton()
+        self.map_toggle.setObjectName("toggle")
+        self.map_toggle.setCheckable(True)
+        self.map_toggle.setChecked(c.MAP_EXPANDED_DEFAULT)
+        self.map_toggle.setCursor(Qt.PointingHandCursor)
+        self.map_toggle.toggled.connect(self.on_map_toggled)
+        self.update_map_toggle_text()
         self.map_label = QLabel("scan en cours...")
         self.map_label.setObjectName("map")
         self.map_label.setAlignment(Qt.AlignCenter)
         self.map_label.setFixedSize(c.MAP_WIDTH + 2, c.MAP_HEIGHT + 2)
+        self.map_label.setVisible(c.MAP_EXPANDED_DEFAULT)
 
         # --- rafraîchissement automatique ---
         self.auto_header = self._section("[ REFRESH AUTO ]")
@@ -64,6 +76,7 @@ class MainWindow(QWidget):
 
         # --- bas de fenêtre ---
         self.status = QLabel("")
+        self.last_scan_label = QLabel("dernier scan : --:--:--")
         self.quota_label = QLabel()
         self.quota_label.setObjectName("tiny")
         self.button = QPushButton("[ REFRESH ]")
@@ -74,11 +87,13 @@ class MainWindow(QWidget):
         lay.setContentsMargins(20, 16, 20, 12)
         lay.setSpacing(8)
         for w in (self.title, self.ip_header, self.ip_label,
-                  self.dns_header, self.dns_label, self.map_header):
+                  self.dns_header, self.dns_label,
+                  self._separator(), self.map_toggle):
             lay.addWidget(w)
         lay.addWidget(self.map_label, alignment=Qt.AlignHCenter)
         lay.addStretch()
 
+        lay.addWidget(self._separator(lines=2))  # double trait avant REFRESH AUTO
         lay.addWidget(self.auto_header)
         auto_row = QHBoxLayout()
         auto_row.addWidget(self.auto_check)
@@ -88,11 +103,21 @@ class MainWindow(QWidget):
         lay.addWidget(self.rate_label)
 
         lay.addWidget(self.status)
+        info_col = QVBoxLayout()
+        info_col.setSpacing(2)
+        info_col.addStretch()
+        info_col.addWidget(self.last_scan_label)
+        info_col.addWidget(self.quota_label)
         bottom = QHBoxLayout()
-        bottom.addWidget(self.quota_label, alignment=Qt.AlignBottom)
+        bottom.addLayout(info_col)
         bottom.addStretch()
         bottom.addWidget(self.button)
         lay.addLayout(bottom)
+
+        width, height = c.WINDOW_SIZE
+        if not c.MAP_EXPANDED_DEFAULT:
+            height -= self.map_extra_height()
+        self.resize(width, height)
 
         self.update_quota_info()
         self.refresh()
@@ -102,6 +127,36 @@ class MainWindow(QWidget):
         label = QLabel(text)
         label.setObjectName("section")
         return label
+
+    @staticmethod
+    def _separator(lines=1):
+        """Trait en pointillés (lines=2 pour un double trait)."""
+        return DashedSeparator(lines)
+
+    # --------------------------------------------------------- carte dépliable
+    def map_extra_height(self):
+        """Hauteur gagnée/perdue quand la carte est dépliée/repliée."""
+        return c.MAP_HEIGHT + 2 + self.layout().spacing()
+
+    def update_map_toggle_text(self):
+        sign = "-" if self.map_toggle.isChecked() else "+"
+        self.map_toggle.setText(f"[{sign}] {self.map_title}")
+
+    def on_map_toggled(self, expanded):
+        self.map_label.setVisible(expanded)
+        self.update_map_toggle_text()
+        self.fit_height_to_content()
+        # 2e passage une fois que Qt a fini de recalculer la mise en page
+        QTimer.singleShot(0, self.fit_height_to_content)
+
+    def fit_height_to_content(self):
+        """Ajuste la hauteur de la fenêtre au contenu affiché (plus d'espace vide)."""
+        if self.isMaximized() or self.isFullScreen():
+            return
+        lay = self.layout()
+        lay.invalidate()  # oublie les tailles mises en cache (ancien état de la carte)
+        lay.activate()    # recalcule la taille minimale de la fenêtre
+        self.resize(self.width(), lay.sizeHint().height())
 
     # ------------------------------------------------------------ réglages
     def interval_seconds(self):
@@ -168,39 +223,59 @@ class MainWindow(QWidget):
         self.button.setEnabled(False)
         self.status.setText("> scan en cours...")
         self.worker = Worker()
+        self.worker.ip_ready.connect(self.on_ip_ready)
+        self.worker.host_ready.connect(self.on_host_ready)
+        self.worker.dns_ready.connect(self.on_dns_ready)
+        self.worker.map_ready.connect(self.on_map_ready)
         self.worker.done.connect(self.on_done)
         self.worker.failed.connect(self.on_failed)
         self.worker.start()
 
-    def on_done(self, d):
-        me = d["me"]
+    def render_ip(self):
+        me = self.my_info
         self.ip_label.setText(
             f'IP      : {me.get("ip", "?")}\n'
-            f'Host    : {d["reverse"]}\n'
+            f'Host    : {self.host}\n'
             f'FAI     : {me.get("org", "?")}\n'
             f'Lieu    : {me.get("city", "?")}, {me.get("country", "?")}\n'
             f'Fuseau  : {me.get("timezone", "?")}'
         )
 
-        if d["dns"]:
+    def on_ip_ready(self, me):
+        self.my_info = me
+        self.host = me.get("hostname") or "recherche..."
+        self.render_ip()
+        self.status.setText("> IP recue, analyse DNS et carte...")
+
+    def on_host_ready(self, name):
+        self.host = name
+        self.render_ip()
+
+    def on_dns_ready(self, entries):
+        if entries:
             lines = []
-            for i, s in enumerate(d["dns"], 1):
+            for i, s in enumerate(entries, 1):
                 if s["public"]:
-                    lines.append(f'DNS {i}   : {s["ip"]}  ({s.get("org", "?")} - {s.get("place", "?")})')
+                    lines.append(f'IP {i}    : {s["ip"]}  ({s.get("org", "?")} - {s.get("place", "?")})')
                 else:
-                    lines.append(f'IP {i}   : {s["ip"]}  (reseau local)')
+                    lines.append(f'IP {i}    : {s["ip"]}  (reseau local)')
             self.dns_label.setText("\n".join(lines))
         else:
-            self.dns_label.setText("Aucun serveur DNS detecte")
+            self.dns_label.setText("Aucune IP detectee")
 
-        if d["image"] is not None:
-            self.map_label.setPixmap(QPixmap.fromImage(d["image"]))
-            self.map_header.setText(f'[ LOCALISATION : {d["label"]} ]')
+    def on_map_ready(self, image, label):
+        if image is not None:
+            self.map_label.setPixmap(QPixmap.fromImage(image))
+            self.map_title = f'LOCALISATION : {label}'
+            self.update_map_toggle_text()
         else:
             self.map_label.setText("carte indisponible")
 
+    def on_done(self, d):
         if d.get("api_calls"):
             self.calls_per_scan = d["api_calls"]
+        stamp = datetime.now().strftime(c.TIME_FORMAT)
+        self.last_scan_label.setText(f"dernier scan : {stamp}")
         self.status.setText("> scan termine")
         self.button.setEnabled(True)
         self.update_quota_info()

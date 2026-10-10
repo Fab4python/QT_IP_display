@@ -1,5 +1,10 @@
-"""Construction de la petite carte (tuiles OpenStreetMap, filtre Matrix optionnel)."""
+"""Construction de la petite carte (tuiles OpenStreetMap, filtre Matrix optionnel).
+
+Rapide : seules les tuiles visibles sont chargées, en parallèle, avec cache disque."""
 import math
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
@@ -15,22 +20,78 @@ def latlon_to_tile(lat, lon, zoom):
     return x, y
 
 
-def _download_tiles(canvas, session, tx, ty):
-    n = 2 ** c.MAP_ZOOM
-    p = QPainter(canvas)
+def _cache_path(z, x, y):
+    return os.path.join(c.TILE_CACHE_DIR, f"{z}_{x}_{y}.png")
+
+
+def _read_cache(z, x, y):
+    """Octets de la tuile en cache disque (si récente), sinon None."""
+    path = _cache_path(z, x, y)
+    try:
+        if time.time() - os.path.getmtime(path) < c.TILE_CACHE_MAX_AGE:
+            with open(path, "rb") as f:
+                return f.read()
+    except OSError:
+        pass
+    return None
+
+
+def _write_cache(z, x, y, data):
+    try:
+        os.makedirs(c.TILE_CACHE_DIR, exist_ok=True)
+        with open(_cache_path(z, x, y), "wb") as f:
+            f.write(data)
+    except OSError:
+        pass
+
+
+def _fetch_tile(session, z, x, y):
+    """Octets PNG d'une tuile : cache disque d'abord, réseau sinon (None si échec)."""
+    data = _read_cache(z, x, y)
+    if data is not None:
+        return data
+    try:
+        r = session.get(c.OSM_TILE_URL.format(z=z, x=x, y=y),
+                        headers=c.HTTP_HEADERS, timeout=c.TILE_TIMEOUT)
+        r.raise_for_status()
+    except requests.RequestException:
+        return None
+    _write_cache(z, x, y, r.content)
+    return r.content
+
+
+def _visible_tiles(left, top):
+    """Tuiles (dx, dy) du canevas 3x3 qui recoupent la zone affichée.
+    (left, top) = coin haut-gauche de la zone dans le canevas."""
+    t = c.TILE_SIZE
+    right, bottom = left + c.MAP_WIDTH, top + c.MAP_HEIGHT
+    tiles = []
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):
-            x, y = (tx + dx) % n, ty + dy
-            if not 0 <= y < n:
-                continue
-            url = c.OSM_TILE_URL.format(z=c.MAP_ZOOM, x=x, y=y)
-            try:
-                r = session.get(url, headers=c.HTTP_HEADERS, timeout=c.HTTP_TIMEOUT)
-                r.raise_for_status()
-                p.drawImage((dx + 1) * c.TILE_SIZE, (dy + 1) * c.TILE_SIZE,
-                            QImage.fromData(r.content))
-            except requests.RequestException:
-                pass
+            x0, y0 = (dx + 1) * t, (dy + 1) * t
+            if x0 < right and x0 + t > left and y0 < bottom and y0 + t > top:
+                tiles.append((dx, dy))
+    return tiles
+
+
+def _draw_tiles(canvas, session, tx, ty, left, top):
+    """Charge en parallèle uniquement les tuiles visibles, puis les assemble."""
+    n = 2 ** c.MAP_ZOOM
+    jobs = []
+    for dx, dy in _visible_tiles(left, top):
+        y = ty + dy
+        if 0 <= y < n:
+            jobs.append((dx, dy, (tx + dx) % n, y))
+
+    with ThreadPoolExecutor(max_workers=c.TILE_WORKERS) as pool:
+        results = list(pool.map(
+            lambda j: _fetch_tile(session, c.MAP_ZOOM, j[2], j[3]), jobs))
+
+    p = QPainter(canvas)
+    for (dx, dy, _x, _y), data in zip(jobs, results):
+        if data:
+            p.drawImage((dx + 1) * c.TILE_SIZE, (dy + 1) * c.TILE_SIZE,
+                        QImage.fromData(data))
     p.end()
 
 
@@ -64,14 +125,16 @@ def build_map(lat, lon, session):
     fx, fy = latlon_to_tile(lat, lon, c.MAP_ZOOM)
     tx, ty = int(fx), int(fy)
 
-    canvas = QImage(t * 3, t * 3, QImage.Format_RGB32)
-    canvas.fill(QColor("black"))
-    _download_tiles(canvas, session, tx, ty)
-
+    # position de la zone affichée dans le canevas de 3x3 tuiles
     px = int((fx - (tx - 1)) * t)
     py = int((fy - (ty - 1)) * t)
-    crop = canvas.copy(px - c.MAP_WIDTH // 2, py - c.MAP_HEIGHT // 2,
-                       c.MAP_WIDTH, c.MAP_HEIGHT)
+    left, top = px - c.MAP_WIDTH // 2, py - c.MAP_HEIGHT // 2
+
+    canvas = QImage(t * 3, t * 3, QImage.Format_RGB32)
+    canvas.fill(QColor("black"))
+    _draw_tiles(canvas, session, tx, ty, left, top)
+
+    crop = canvas.copy(left, top, c.MAP_WIDTH, c.MAP_HEIGHT)
     if c.MAP_MATRIX_FILTER:
         crop = _apply_matrix_filter(crop)
     _draw_marker(crop)

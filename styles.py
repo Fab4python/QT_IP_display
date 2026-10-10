@@ -21,6 +21,14 @@ QPushButton:disabled {{
     color: {c.MATRIX_DISABLED_GREEN};
     border-color: {c.MATRIX_DISABLED_GREEN};
 }}
+QPushButton#toggle {{
+    border: none;
+    padding: 0;
+    text-align: left;
+    color: {c.MATRIX_DIM_GREEN};
+    font-weight: bold;
+}}
+QPushButton#toggle:hover {{ background: {c.BACKGROUND}; color: {c.MATRIX_GREEN}; }}
 QLabel#tiny {{ font-size: 9px; color: {c.MATRIX_DIM_GREEN}; }}
 QCheckBox::indicator {{
     width: 12px; height: 12px;

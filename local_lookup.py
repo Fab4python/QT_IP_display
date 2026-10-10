@@ -14,7 +14,10 @@ IPV4_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
 
 
 def _run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True, errors="ignore").stdout
+    flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+    return subprocess.run(
+        cmd, capture_output=True, text=True, errors="ignore", creationflags=flags
+    ).stdout
 
 
 def _dns_windows():

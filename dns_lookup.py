@@ -1,10 +1,16 @@
 """Définition de l'adresse DNS / IP : identification et géolocalisation
 via Internet (requests + ipinfo.io). Aucune dépendance à Qt."""
+from concurrent.futures import ThreadPoolExecutor
+
 import requests
 
 import config as c
 import quota
 from local_lookup import is_public
+
+# Lieu des serveurs DNS déjà connu : un serveur DNS ne déménage pas, inutile de
+# le redemander à chaque scan (plus rapide, et moins d'appels sur le quota).
+_DNS_CACHE = {}
 
 
 def _get_json(session, url):
@@ -21,6 +27,8 @@ def fetch_public_ip_info(session):
 
 def describe_dns_server(session, ip):
     """Décrit un serveur DNS : public/local, opérateur, lieu, coordonnées."""
+    if ip in _DNS_CACHE:
+        return dict(_DNS_CACHE[ip])
     entry = {"ip": ip, "public": is_public(ip)}
     if entry["public"]:
         try:
@@ -30,13 +38,18 @@ def describe_dns_server(session, ip):
                 place=f'{info.get("city", "?")}, {info.get("country", "?")}',
                 loc=info.get("loc"),
             )
+            _DNS_CACHE[ip] = dict(entry)
         except requests.RequestException:
             pass
     return entry
 
 
 def describe_dns_servers(session, servers):
-    return [describe_dns_server(session, ip) for ip in servers]
+    """Décrit tous les serveurs en parallèle (au lieu d'un par un)."""
+    if not servers:
+        return []
+    with ThreadPoolExecutor(max_workers=len(servers)) as pool:
+        return list(pool.map(lambda ip: describe_dns_server(session, ip), servers))
 
 
 def pick_map_target(my_info, dns_entries):
@@ -45,7 +58,7 @@ def pick_map_target(my_info, dns_entries):
     for d in dns_entries:
         if d.get("loc"):
             lat, lon = map(float, d["loc"].split(","))
-            return lat, lon, f'IP {d["ip"]}'
+            return lat, lon, f'DNS {d["ip"]}'
     if my_info.get("loc"):
         lat, lon = map(float, my_info["loc"].split(","))
         return lat, lon, "IP publique"
