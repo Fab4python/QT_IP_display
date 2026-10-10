@@ -1,3 +1,23 @@
+# Description
+
+Visualiser rapidement son adresse ip exposée sur internet
+
+Application faite en prompt enginering en python
+
+![img.png](img.png)
+
+## Pré requis:
+Connaissance en langage python et manipulation des IDE
+version python : 3.12
+
+Installation des librairies du projet dans le fichier requierement.txt
+ou lancer les commande `pip install Pyside6 requests`
+
+## Exécution:
+Lancer la commande python main.py
+
+
+
 # Matrix NetInfo : structure du projet
 
 ## Arborescence
