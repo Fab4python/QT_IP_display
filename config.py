@@ -61,3 +61,7 @@ TIME_FORMAT = "%H:%M:%S"  # format de l'heure du dernier scan
 # --- Cartes réseau (alias des IP) --------------------------------------------
 ALIAS_MAX_CHARS = 24         # alias tronqué à l'écran (complet dans l'info-bulle)
 LOCAL_COMMAND_TIMEOUT = 10   # attente max d'une commande locale (PowerShell, ipconfig)
+
+# --- Crédit de la carte (obligatoire avec OpenStreetMap) -------------------------
+OSM_CREDIT_TEXT = "© OpenStreetMap contributors"
+OSM_COPYRIGHT_URL = "https://www.openstreetmap.org/copyright"

@@ -58,6 +58,16 @@ class MainWindow(QWidget):
         self.map_label.setFixedSize(c.MAP_WIDTH + 2, c.MAP_HEIGHT + 2)
         self.map_label.setVisible(c.MAP_EXPANDED_DEFAULT)
 
+        # crédit OpenStreetMap (obligatoire) : lien cliquable sous la carte
+        self.map_credit = QLabel(
+            f'<a href="{c.OSM_COPYRIGHT_URL}" style="color: {c.MATRIX_DIM_GREEN}; '
+            f'text-decoration: none;">{c.OSM_CREDIT_TEXT}</a>'
+        )
+        self.map_credit.setObjectName("tiny")
+        self.map_credit.setTextFormat(Qt.RichText)
+        self.map_credit.setOpenExternalLinks(True)
+        self.map_credit.setVisible(c.MAP_EXPANDED_DEFAULT)
+
         # --- rafraîchissement automatique ---
         self.auto_header = self._section("[ REFRESH AUTO ]")
         self.auto_check = QCheckBox("ON")
@@ -91,6 +101,7 @@ class MainWindow(QWidget):
                   self._separator(), self.map_toggle):
             lay.addWidget(w)
         lay.addWidget(self.map_label, alignment=Qt.AlignHCenter)
+        lay.addWidget(self.map_credit, alignment=Qt.AlignHCenter)
         lay.addStretch()
 
         lay.addWidget(self._separator(lines=2))  # double trait avant REFRESH AUTO
@@ -136,7 +147,8 @@ class MainWindow(QWidget):
     # --------------------------------------------------------- carte dépliable
     def map_extra_height(self):
         """Hauteur gagnée/perdue quand la carte est dépliée/repliée."""
-        return c.MAP_HEIGHT + 2 + self.layout().spacing()
+        spacing = self.layout().spacing()
+        return c.MAP_HEIGHT + 2 + self.map_credit.sizeHint().height() + 2 * spacing
 
     def update_map_toggle_text(self):
         sign = "-" if self.map_toggle.isChecked() else "+"
@@ -144,6 +156,7 @@ class MainWindow(QWidget):
 
     def on_map_toggled(self, expanded):
         self.map_label.setVisible(expanded)
+        self.map_credit.setVisible(expanded)
         self.update_map_toggle_text()
         self.fit_height_to_content()
         # 2e passage une fois que Qt a fini de recalculer la mise en page

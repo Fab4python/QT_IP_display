@@ -33,12 +33,9 @@ Application réalisée full Python par prompt engineering.
 
 ## Third-party licenses
 
-This project uses [PySide6](https://pypi.org/project/PySide6/).
-
-PySide6 is licensed under the GNU Lesser General Public License v3.0 (LGPL-3.0-only),
-and is also available under GPL-2.0-only, GPL-3.0-only, or a Qt commercial license.
-
-Copyright notices and license texts are provided in `THIRD-PARTY-NOTICES.md`.
+Composants tiers : voir THIRD_PARTY_LICENSES.md (PySide6 / Qt sous LGPL-3.0, requests sous Apache-2.0, etc.).
+Carte : © OpenStreetMap contributors (données sous licence ODbL). 
+La mention est affichée sous la carte, avec un lien vers https://www.openstreetmap.org/copyright.
 
 ## Installation
 
